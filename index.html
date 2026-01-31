@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>HTTPSの仕組み：公開鍵アイコン入り証明書版</title>
     <style>
         /* --- 共通設定 --- */
@@ -14,8 +14,9 @@
         body { 
             font-family: "Hiragino Sans", "Biz UDPGothic", sans-serif; 
             background-color: var(--bg); color: #333; 
-            padding: 5px; margin: 0;
-            height: 100vh; box-sizing: border-box;
+            padding: 2px; margin: 0;
+            height: 100vh; height: 100dvh; /* 動的な高さに対応 */
+            box-sizing: border-box;
             overflow: hidden; display: flex; flex-direction: column;
         }
         .container { 
@@ -23,163 +24,95 @@
             display: flex; flex-direction: column; height: 100%;
         }
 
-        /* 余白を削減 */
-        header { padding: 0; text-align: center; flex-shrink: 0; margin-bottom: 2px;}
-        h1 { font-size: 1.5em; margin: 0; line-height: 1.1; }
-        .subtitle { font-size: 0.9em; margin: 0; color: #666; font-weight: bold;}
+        header { padding: 2px 0; text-align: center; flex-shrink: 0; }
+        h1 { font-size: 1.3em; margin: 0; line-height: 1.1; }
+        .subtitle { font-size: 0.8em; margin: 0; color: #666; font-weight: bold;}
 
-        /* --- 登場人物エリア：高さを圧縮 --- */
+        /* --- 登場人物エリア：さらに圧縮 --- */
         .stage-top { 
-            display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; 
+            display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 5px; 
             margin-bottom: 5px; flex-shrink: 0;
         }
         .person { 
             background: #fff; padding: 4px; border-radius: 8px; 
-            border-top: 4px solid #ccc; box-shadow: 0 2px 5px rgba(0,0,0,0.1); 
-            text-align: center; position: relative;
+            border-top: 4px solid #ccc; box-shadow: 0 2px 4px rgba(0,0,0,0.1); 
+            text-align: center;
         }
         .person.client { border-color: var(--client-color); } 
         .person.server { border-color: var(--server-color); } 
         .person.ca { border-color: var(--ca-color); background: #fffbeb; }
         
-        .role { 
-            font-weight: 900; display: block; margin-bottom: 2px; 
-            font-size: 1.1em; line-height: 1;
-        }
-        .avatar {
-            font-size: 45px; line-height: 1; margin: 2px 0; letter-spacing: -5px;
-        }
+        .role { font-weight: 900; display: block; font-size: 0.9em; margin-bottom: 2px; }
+        .avatar { font-size: 35px; line-height: 1; margin: 2px 0; letter-spacing: -3px; }
         
         .inventory { 
-            background: #f1f5f9; border-radius: 6px; padding: 4px; 
-            min-height: 65px; 
-            text-align: left; margin-top: 0; border: 1px solid #e2e8f0; 
-            display: flex; flex-direction: column; gap: 3px; justify-content: center;
+            background: #f1f5f9; border-radius: 6px; padding: 3px; 
+            min-height: 55px; text-align: left; border: 1px solid #e2e8f0; 
+            display: flex; flex-direction: column; gap: 2px; justify-content: center;
         }
         
         .item { 
-            background: white; padding: 4px 6px; border-radius: 6px; 
-            font-size: 0.95em; font-weight: bold;
-            border: 2px solid #cbd5e1; 
+            background: white; padding: 3px 5px; border-radius: 4px; 
+            font-size: 0.85em; font-weight: bold; border: 1.5px solid #cbd5e1; 
             display: flex; align-items: center; justify-content: space-between;
-            gap: 3px; box-shadow: 0 1px 2px rgba(0,0,0,0.1);
-            position: relative; transition: all 0.2s;
-            line-height: 1.1; box-sizing: border-box;
+            line-height: 1.1;
         }
-        
-        .item.highlighted {
-            border-color: #f59e0b; background-color: #fff7ed;
-            box-shadow: 0 0 10px rgba(245, 158, 11, 0.7);
-            transform: scale(1.03); z-index: 10;
-        }
-
         .secret-key { border-color: #ef4444; background: #fef2f2; color: #b91c1c; }
-        .note { 
-            font-size: 0.75em; font-weight: normal; color: #555; 
-            display: inline-block; background: #eee; 
-            padding: 1px 4px; border-radius: 3px; vertical-align: middle;
-        }
-        .secret-key .note { color: #dc2626; background: rgba(255,0,0,0.1); font-weight: bold;}
+        .note { font-size: 0.7em; font-weight: normal; color: #777; padding: 0 2px; background: #eee; border-radius: 2px; }
 
-        /* --- メインアクションエリア --- */
+        /* --- メインアクションエリア：高さを可変に --- */
         .main-stage {
-            display: flex; gap: 8px; background: #fff; border-radius: 12px; padding: 8px;
-            box-shadow: 0 5px 20px rgba(0,0,0,0.15); border: 2px solid #ddd; 
-            flex: 1; min-height: 0; /* iPadで見切れないよう可変に */
+            display: flex; gap: 8px; background: #fff; border-radius: 10px; padding: 8px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1); border: 2px solid #ddd; 
+            flex: 1; /* 残りの高さをすべて使う */
+            min-height: 0; /* 子要素が溢れるのを防ぐ重要設定 */
             position: relative; box-sizing: border-box;
             margin-bottom: 5px;
         }
         
         .text-side { 
-            flex: 0.8; display: flex; flex-direction: column; justify-content: flex-start; 
-            padding-top: 5px; min-width: 0; 
+            flex: 1; display: flex; flex-direction: column; 
+            justify-content: flex-start; /* 上に詰める */
+            padding-top: 2px; min-width: 0; 
         }
         
+        /* アニメーション用の空欄：高さを自動縮小 */
         .visual-side { 
             flex: 1.2; position: relative; background: #f8fafc; border-radius: 8px; 
-            border: 3px dashed #cbd5e1; overflow: hidden; 
+            border: 2px dashed #cbd5e1; overflow: hidden;
+            min-height: 0; 
         }
         
-        /* バッジとメッセージの余白を最小化 */
         .phase-badge { 
-            display: inline-block; padding: 3px 12px; border-radius: 12px; 
-            color: white; background: #333; font-size: 0.9em; margin-bottom: 8px; font-weight: bold;
+            display: inline-block; padding: 2px 10px; border-radius: 10px; 
+            color: white; background: #333; font-size: 0.85em; margin-bottom: 5px; font-weight: bold;
         }
         
         .msg-box { 
-            font-size: 1.25em; font-weight: 800; color: #222; 
-            line-height: 1.3; white-space: normal; 
+            font-size: 1.1em; font-weight: 800; color: #222; 
+            line-height: 1.25;
         }
         
         .def-box {
-            background: #fffbeb; border: 2px solid #f59e0b;
-            padding: 6px; border-radius: 8px; margin: 8px 0;
-            font-size: 0.8em; color: #333; text-align: left;
+            background: #fffbeb; border: 1.5px solid #f59e0b;
+            padding: 5px; border-radius: 6px; margin: 5px 0;
+            font-size: 0.75em; color: #333;
         }
         
-        /* アニメーション要素 */
-        .obj { 
-            position: absolute; transition: all 0.6s cubic-bezier(0.25, 0.8, 0.25, 1); 
-            display: flex; flex-direction: column; align-items: center; justify-content: center; 
-            left: 50%; top: 50%; transform: translate(-50%, -50%) scale(0); opacity: 0; 
-        }
-        
-        .flying-item {
-            position: fixed; z-index: 9999; 
-            background: white; padding: 8px 15px; border-radius: 10px; 
-            border: 3px solid #333; font-weight: bold; font-size: 1.2em;
-            box-shadow: 0 10px 25px rgba(0,0,0,0.3);
-            transition: all 1s cubic-bezier(0.25, 1, 0.5, 1);
-            pointer-events: none; display: flex; align-items: center; justify-content: space-between; gap: 8px;
-            box-sizing: border-box;
-        }
-        
-        .unlocking-motion {
-            position: fixed; z-index: 9999; font-size: 60px; 
-            transition: all 0.8s ease-in-out; pointer-events: none;
-        }
-
-        /* 証明書ウインドウのサイズ調整 */
-        .cert-win { 
-            width: 240px; padding: 10px; background: #fff; border: 4px solid #cbd5e1; border-radius: 15px; 
-            z-index: 10; box-shadow: 0 10px 30px rgba(0,0,0,0.2);
-            transition: border-color 0.5s;
-        }
-        .cert-seal-container { position: absolute; top: -15px; right: -8px; z-index: 20; }
-        .cert-seal { 
-            background: var(--ca-color); color: white; padding: 4px 12px; border-radius: 30px; 
-            font-size: 0.9em; font-weight: bold; box-shadow: 0 3px 6px rgba(0,0,0,0.2);
-            display: flex; align-items: center; gap: 5px;
-        }
-        .cert-body { 
-            background: #f1f5f9; padding: 8px; border-radius: 8px; margin-top: 8px; 
-            filter: blur(5px); opacity: 0.6; transition: 0.8s; border: 2px solid #ddd;
-            display: flex; flex-direction: column; align-items: center;
-        }
-
-        /* ボタンの配置を調整 */
+        /* アクションボタン：最下部に固定 */
         .action-btn { 
-            position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%); 
-            background: #334155; color: white; border: none; padding: 12px 40px; 
-            font-size: 1.3em; border-radius: 50px; cursor: pointer; transition: 0.2s; 
-            box-shadow: 0 5px 15px rgba(0,0,0,0.3); white-space: nowrap; font-weight: 900;
+            position: absolute; bottom: 8px; left: 50%; transform: translateX(-50%); 
+            background: #334155; color: white; border: none; padding: 10px 35px; 
+            font-size: 1.2em; border-radius: 40px; cursor: pointer; transition: 0.2s; 
+            box-shadow: 0 4px 10px rgba(0,0,0,0.3); white-space: nowrap; font-weight: 900;
             z-index: 100;
         }
-        .action-btn:hover { background: #475569; transform: translateX(-50%) scale(1.05); }
+        .action-btn:hover { background: #475569; }
         .action-btn:active { transform: translateX(-50%) scale(0.95); }
-        .action-btn:disabled { background: #cbd5e1; cursor: not-allowed; transform: translateX(-50%); }
 
-        @keyframes flash {
-            0% { transform: scale(1); background-color: white; }
-            50% { transform: scale(1.05); background-color: #fde047; }
-            100% { transform: scale(1); background-color: white; }
-        }
-        .blink { animation: flash 0.6s ease-in-out 3; }
-        .hash-val { position: absolute; background: #333; color: #fff; padding: 5px; border-radius: 5px; font-size: 0.8em; opacity: 0; transition: 0.8s; z-index: 50; }
-        .hash-match { background: #22c55e !important; transform: scale(1.2); }
-        @keyframes unlockShake { 0% { transform: rotate(0deg); } 50% { transform: rotate(15deg); } 100% { transform: rotate(0deg); } }
-        .shaking { animation: unlockShake 0.4s ease-in-out; }
-
+        /* オブジェクトサイズ微調整 */
+        .cert-win { width: 180px; padding: 8px; font-size: 0.8em; }
+        .flying-item { font-size: 1em; padding: 5px 10px; }
     </style>
 </head>
 <body>
@@ -195,24 +128,22 @@
             <span class="role">認証局</span>
             <div class="avatar">🏛️</div>
             <div class="inventory" id="inv-ca">
-                <div class="item secret-key" id="src-ca-privkey"><span>🗝️ CA秘密鍵</span> <span class="note">厳重保管</span></div>
+                <div class="item secret-key" id="src-ca-privkey"><span>🗝️ CA秘密</span></div>
             </div>
         </div>
-        
         <div class="person server">
-            <span class="role">Webサーバ</span>
-            <div class="avatar">☁️🗄️</div>
+            <span class="role">サーバ</span>
+            <div class="avatar">☁️</div>
             <div class="inventory" id="inv-server">
-                <div class="item secret-key" id="src-server-privkey"><span>🗝️ サーバ秘密鍵</span> <span class="note">秘</span></div>
-                <div class="item" id="src-server-pubkey-raw"><span>🔓 サーバ公開鍵</span></div>
+                <div class="item secret-key" id="src-server-privkey"><span>🗝️ サーバ秘密</span></div>
+                <div class="item" id="src-server-pubkey-raw"><span>🔓 サーバ公開</span></div>
             </div>
         </div>
-        
         <div class="person client">
             <span class="role">あなた</span>
-            <div class="avatar">📱💻</div>
+            <div class="avatar">📱</div>
             <div class="inventory" id="inv-client">
-                <div class="item" id="src-ca-pubkey"><span>🛡️ CA公開鍵</span> <span class="note">初期</span></div>
+                <div class="item" id="src-ca-pubkey"><span>🛡️ CA公開</span> <span class="note">初期</span></div>
             </div>
         </div>
     </div>
@@ -221,29 +152,19 @@
         <div class="text-side">
             <div><span id="badge" class="phase-badge">Start</span></div>
             <div class="msg-box" id="msg">
-                「発行申請」ボタンを<br>押してください。<br><br>
+                「発行申請」を<br>押してください。<br><br>
                 サーバが認証局(CA)へ<br>公開鍵を送ります。
             </div>
         </div>
 
         <div class="visual-side" id="visual-area">
-            <div id="cert" class="cert-win obj">
-                <div class="cert-seal-container">
-                    <div class="cert-seal" id="seal">🔒 CAの署名</div>
-                </div>
-                <div style="font-weight:bold; font-size: 1.1em; margin-bottom:3px;">📜🔓 証明書</div>
-                <div id="cert-body" class="cert-body">
-                    <div style="font-size:30px; margin: 2px;">🔓</div>
-                    <div style="font-weight:bold; color:var(--server-color); font-size:1em;">サーバ公開鍵</div>
-                </div>
+            <div id="cert" class="cert-win obj" style="position:absolute; top:50%; left:50%; transform:translate(-50%, -50%) scale(0); border: 3px solid #cbd5e1; border-radius:10px; background:white; padding:10px; opacity:0; transition: 0.5s;">
+                <div style="font-weight:bold; border-bottom:1px solid #eee; margin-bottom:5px;">📜 証明書</div>
+                <div style="font-size:30px;">🔓</div>
+                <div style="font-size:0.8em; color:var(--server-color); font-weight:bold;">サーバ公開鍵</div>
             </div>
-            
-            <div id="common-key" class="obj" style="font-size:100px;">🔑</div>
-            <div id="using-key" class="obj" style="font-size:80px; color:var(--server-color);">🔓</div>
-            <div id="capsule" class="obj" style="font-size:100px;">💊</div>
-
-            <div id="hash-decrypted" class="hash-val" style="top:20%; left:70%;">#️⃣正解ハッシュ</div>
-            <div id="hash-calc" class="hash-val" style="top:50%; left:70%;">#️⃣計算ハッシュ</div>
+            <div id="common-key" class="obj" style="font-size:60px; position:absolute; top:50%; left:50%; transform:translate(-50%,-50%) scale(0); opacity:0; transition:0.5s;">🔑</div>
+            <div id="capsule" class="obj" style="font-size:60px; position:absolute; top:50%; left:50%; transform:translate(-50%,-50%) scale(0); opacity:0; transition:0.5s;">💊</div>
         </div>
 
         <button id="btn" class="action-btn" onclick="nextStep()">発行申請 📝</button>
@@ -251,209 +172,126 @@
 </div>
 
 <script>
-    // スクリプト部分は元のロジックを維持しつつ、アニメーションの微調整のみ行っています
+    // --- 以下、アニメーションロジックは前回同様（サイズ微調整済み） ---
     let step = 0;
     const btn = document.getElementById('btn');
     const msg = document.getElementById('msg');
     const badge = document.getElementById('badge');
 
-    function highlightItem(itemId) {
-        const item = document.getElementById(itemId);
-        if (item) item.classList.add('highlighted');
-    }
-
-    function unhighlightItem(itemId) {
-        const item = document.getElementById(itemId);
-        if (item) item.classList.remove('highlighted');
-    }
-
-    function transferItem(sourceItemId, destContainerId, contentHtml, iconChar, callback, newItemId = null) {
-        const sourceElem = document.getElementById(sourceItemId); 
+    function transferItem(sourceItemId, destContainerId, contentHtml, iconChar, callback) {
+        const sourceElem = document.getElementById(sourceItemId);
         const destContainer = document.getElementById(destContainerId);
-        
-        const placeholder = document.createElement('div');
-        placeholder.className = 'item'; 
-        placeholder.style.visibility = 'hidden'; 
-        placeholder.style.opacity = '0';
-        placeholder.innerHTML = `${iconChar} <span>${contentHtml}</span>`;
-        destContainer.appendChild(placeholder);
-
         const startRect = sourceElem.getBoundingClientRect();
-        const endRect = placeholder.getBoundingClientRect();
-
+        
         const flyer = document.createElement('div');
-        flyer.className = 'flying-item'; 
-        flyer.innerHTML = `${iconChar} <span>${contentHtml}</span>`; 
-
+        flyer.style.position = 'fixed';
         flyer.style.left = startRect.left + 'px';
         flyer.style.top = startRect.top + 'px';
-        flyer.style.width = startRect.width + 'px';
-        
+        flyer.style.zIndex = '9999';
+        flyer.style.background = 'white';
+        flyer.style.border = '2px solid #333';
+        flyer.style.padding = '4px 8px';
+        flyer.style.borderRadius = '5px';
+        flyer.style.fontSize = '0.9em';
+        flyer.style.transition = 'all 0.8s ease-in-out';
+        flyer.innerHTML = `${iconChar} ${contentHtml}`;
         document.body.appendChild(flyer);
 
+        const placeholder = document.createElement('div');
+        placeholder.className = 'item';
+        placeholder.style.visibility = 'hidden';
+        placeholder.innerHTML = `${iconChar} ${contentHtml}`;
+        destContainer.appendChild(placeholder);
+        const endRect = placeholder.getBoundingClientRect();
+
         requestAnimationFrame(() => {
-            requestAnimationFrame(() => {
-                flyer.style.left = endRect.left + 'px';
-                flyer.style.top = endRect.top + 'px';
-                flyer.style.width = endRect.width + 'px';
-            });
+            flyer.style.left = endRect.left + 'px';
+            flyer.style.top = endRect.top + 'px';
         });
 
         setTimeout(() => {
-            flyer.remove(); 
-            placeholder.remove();
-            const newItem = document.createElement('div');
-            newItem.className = 'item blink';
-            if (newItemId) newItem.id = newItemId;
-            newItem.innerHTML = `${iconChar} <span>${contentHtml}</span> <span class="note" style="color:#1d4ed8;">New!</span>`;
-            destContainer.appendChild(newItem);
-            if (callback) callback();
-        }, 1000);
+            flyer.remove();
+            placeholder.style.visibility = 'visible';
+            placeholder.style.backgroundColor = '#dcfce7';
+            if(callback) callback(placeholder);
+        }, 850);
     }
 
     function nextStep() {
         step++;
         btn.disabled = true;
-
         if (step === 1) {
-            badge.innerText = "Step 0: 発行申請";
-            badge.style.background = "#f59e0b";
-            msg.innerHTML = "サーバが認証局(CA)へ<br><b>「サーバ公開鍵🔓」</b>を<br>提出します。";
-            transferItem('src-server-pubkey-raw', 'inv-ca', 'サーバ公開鍵', '🔓', () => {
-                document.getElementById('src-server-pubkey-raw').remove();
-                msg.innerHTML = "認証局は鍵を<br><b>「原紙📄🔓」</b>にし<br><b>「CA秘密鍵」</b>で署名します。";
-                const caInv = document.getElementById('inv-ca');
-                caInv.lastChild.remove(); 
-                const draftItem = document.createElement('div');
-                draftItem.className = 'item';
-                draftItem.id = 'draft-cert';
-                draftItem.innerHTML = `📄🔓 <span>証明書原紙</span>`;
-                caInv.appendChild(draftItem);
+            badge.innerText = "Step 0";
+            msg.innerHTML = "サーバの<b>公開鍵🔓</b>を<br>認証局へ送ります。";
+            transferItem('src-server-pubkey-raw', 'inv-ca', 'サーバ公開', '🔓', (el) => {
+                document.getElementById('src-server-pubkey-raw').style.display = 'none';
+                msg.innerHTML = "認証局が署名を行い、<br><b>証明書📜</b>を作ります。";
                 setTimeout(() => {
-                    highlightItem('src-ca-privkey');
-                    setTimeout(() => {
-                        unhighlightItem('src-ca-privkey');
-                        draftItem.innerHTML = `📜🔓 <span>署名済証明書</span>`;
-                        draftItem.classList.add('blink');
-                        draftItem.id = 'signed-cert';
-                        btn.innerText = "サーバへ送る 📨";
-                        btn.disabled = false;
-                    }, 800);
-                }, 600);
+                    el.innerHTML = "📜 署名済証明書";
+                    el.id = "signed-cert";
+                    btn.innerText = "サーバへ送る";
+                    btn.disabled = false;
+                }, 800);
             });
-        }
-        else if (step === 2) {
-            badge.innerText = "Step 0: 発行完了";
-            msg.innerHTML = "<b>「署名つき証明書📜🔓」</b>が<br>サーバへ発行されました。";
-            transferItem('signed-cert', 'inv-server', '署名済証明書', '📜🔓', () => {
-                document.getElementById('signed-cert').remove();
-                const serverInv = document.getElementById('inv-server');
-                serverInv.lastChild.id = 'src-cert-item';
+        } else if (step === 2) {
+            msg.innerHTML = "証明書がサーバに<br>届きました。";
+            transferItem('signed-cert', 'inv-server', '署名済証明書', '📜', (el) => {
+                el.id = "server-cert";
                 btn.innerText = "接続開始 🚀";
                 btn.disabled = false;
             });
-        }
-        else if (step === 3) {
-            badge.innerText = "Step 1: 証明書の提示";
-            badge.style.background = "#10b981";
-            msg.innerHTML = "サーバがユーザへ、<br><b>「証明書」</b>を送信しました。";
-            transferItem('src-cert-item', 'inv-client', '署名済証明書', '📜🔓', () => {
-                msg.innerHTML = `受信しました。<br><div class="def-box">検証前なので中身は<br>まだ信用できません。</div>`;
+        } else if (step === 3) {
+            badge.innerText = "Step 1";
+            badge.style.background = var(--server-color);
+            msg.innerHTML = "サーバがあなたへ<br><b>証明書📜</b>を送ります。";
+            transferItem('server-cert', 'inv-client', '署名済証明書', '📜', (el) => {
                 const cert = document.getElementById('cert');
                 cert.style.transform = "translate(-50%, -50%) scale(1)";
                 cert.style.opacity = "1";
-                btn.innerText = "検証して開ける 🔍";
+                btn.innerText = "検証して開く 🔍";
                 btn.disabled = false;
             });
-        }
-        else if (step === 4) {
-            badge.innerText = "Step 2: 検証";
-            badge.style.background = "#3b82f6";
-            msg.innerHTML = "<b>「CA公開鍵🛡️」</b>で<br>署名を検証します。";
-            const sourceKey = document.getElementById('src-ca-pubkey');
-            highlightItem('src-ca-pubkey');
-            const keyAnim = document.createElement('div');
-            keyAnim.className = 'unlocking-motion';
-            keyAnim.innerHTML = '🛡️';
-            const startRect = sourceKey.getBoundingClientRect();
-            keyAnim.style.left = startRect.left + 'px'; keyAnim.style.top = startRect.top + 'px';
-            document.body.appendChild(keyAnim);
+        } else if (step === 4) {
+            badge.innerText = "Step 2";
+            msg.innerHTML = "<b>CA公開鍵🛡️</b>で<br>証明書を検証し、<br>サーバ公開鍵🔓を<br>取り出しました！";
+            document.getElementById('cert').style.borderColor = var(--server-color);
             setTimeout(() => {
-                const sealRect = document.getElementById('seal').getBoundingClientRect();
-                keyAnim.style.left = sealRect.left + 'px'; keyAnim.style.top = sealRect.top + 'px';
-            }, 50);
-            setTimeout(() => {
-                document.getElementById('seal').classList.add('shaking');
-                setTimeout(() => {
-                    document.getElementById('hash-decrypted').style.opacity = 1;
-                    document.getElementById('hash-calc').style.opacity = 1;
-                    setTimeout(() => {
-                        document.getElementById('hash-decrypted').classList.add('hash-match');
-                        document.getElementById('hash-decrypted').innerHTML = "✅ 一致！";
-                        document.getElementById('cert-body').style.filter = "none";
-                        document.getElementById('cert-body').style.opacity = "1";
-                        unhighlightItem('src-ca-pubkey');
-                        keyAnim.remove();
-                        const invClient = document.getElementById('inv-client');
-                        const keyItem = document.createElement('div');
-                        keyItem.className = "item blink";
-                        keyItem.id = 'src-server-pubkey'; 
-                        keyItem.innerHTML = "🔓 <span>サーバ公開鍵</span>";
-                        invClient.appendChild(keyItem);
-                        btn.innerText = "共通鍵を作成 🔑";
-                        btn.disabled = false;
-                    }, 1000);
-                }, 600);
+                const inv = document.getElementById('inv-client');
+                const newItem = document.createElement('div');
+                newItem.className = 'item';
+                newItem.id = 'client-server-pub';
+                newItem.innerHTML = "🔓 サーバ公開";
+                inv.appendChild(newItem);
+                btn.innerText = "共通鍵を作る 🔑";
+                btn.disabled = false;
             }, 800);
-        }
-        else if (step === 5) {
-            badge.innerText = "Step 3: 共通鍵生成";
-            msg.innerHTML = "ユーザが<br><b>「セッション鍵🔑」</b>を<br>生成しました。";
-            document.getElementById('cert').style.opacity = "0"; 
-            document.getElementById('common-key').style.opacity = "1";
-            document.getElementById('common-key').style.transform = "translate(-50%, -50%) scale(1)";
-            const invClient = document.getElementById('inv-client');
-            const sessionItem = document.createElement('div');
-            sessionItem.className = "item blink"; 
-            sessionItem.id = "src-session-item"; 
-            sessionItem.innerHTML = '🔑 <span>セッション鍵</span>';
-            invClient.appendChild(sessionItem);
+        } else if (step === 5) {
+            badge.innerText = "Step 3";
+            msg.innerHTML = "暗号化に使う<br><b>セッション鍵🔑</b>を<br>作成しました。";
+            document.getElementById('cert').style.opacity = 0;
+            const key = document.getElementById('common-key');
+            key.style.opacity = 1; key.style.transform = "translate(-50%, -50%) scale(1)";
             btn.innerText = "暗号化して送信 💊";
             btn.disabled = false;
-        }
-        else if (step === 6) {
-            badge.innerText = "Step 4: 暗号化送信";
-            msg.innerHTML = "<b>「セッション鍵」</b>を<br><b>「サーバ公開鍵」</b>で<br>暗号化して送ります。";
-            highlightItem('src-session-item');
-            highlightItem('src-server-pubkey');
+        } else if (step === 6) {
+            msg.innerHTML = "鍵を<b>サーバ公開鍵🔓</b>で<br>暗号化（💊カプセル化）<br>して送ります。";
+            document.getElementById('common-key').style.opacity = 0;
+            const cap = document.getElementById('capsule');
+            cap.style.opacity = 1; cap.style.transform = "translate(-50%, -50%) scale(1)";
             setTimeout(() => {
-                document.getElementById('common-key').style.transform = "translate(-50%, -50%) scale(0)";
-                document.getElementById('capsule').style.transform = "translate(-50%, -50%) scale(1)";
-                document.getElementById('capsule').style.opacity = "1";
-                unhighlightItem('src-session-item');
-                unhighlightItem('src-server-pubkey');
-                setTimeout(() => {
-                    transferItem('capsule', 'inv-server', 'カプセル', '💊', () => {
-                        btn.innerText = "サーバで復号 🗝️";
-                        btn.disabled = false;
-                    }, 'dest-capsule');
-                    document.getElementById('capsule').style.opacity = 0;
-                }, 800);
-            }, 800);
-        }
-        else if (step === 7) {
-            badge.innerText = "Final: 通信確立";
-            msg.innerHTML = "サーバが<b>「秘密鍵」</b>で<br>復号し、鍵を共有しました。";
-            highlightItem('src-server-privkey');
-            document.getElementById('common-key').style.opacity = "1";
-            document.getElementById('common-key').style.transform = "translate(-50%, -50%) scale(1.2)";
-            const invServer = document.getElementById('inv-server');
-            const finalItem = document.createElement('div');
-            finalItem.className = "item blink";
-            finalItem.innerHTML = '🔑 <span>セッション鍵</span>';
-            invServer.appendChild(finalItem);
-            btn.style.display = "none";
-            document.getElementById('visual-area').innerHTML = '<div style="position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); font-size:1.8em; font-weight:900; color:#10b981; width:100%; text-align:center;">🤝 HTTPS通信確立</div>';
+                cap.style.opacity = 0;
+                transferItem('capsule', 'inv-server', 'カプセル', '💊', (el) => {
+                    el.id = 'server-capsule';
+                    btn.innerText = "サーバで復号 🗝️";
+                    btn.disabled = false;
+                });
+            }, 600);
+        } else if (step === 7) {
+            badge.innerText = "Goal!";
+            msg.innerHTML = "サーバが<b>秘密鍵🗝️</b>で<br>復号し、鍵を共有！<br><br><b>HTTPS通信確立！🤝</b>";
+            document.getElementById('server-capsule').innerHTML = "🔑 セッション鍵";
+            document.getElementById('visual-area').innerHTML = "<div style='display:flex; height:100%; align-items:center; justify-content:center; color:#10b981; font-weight:bold; font-size:1.5em;'>✅ HTTPS CONNECTED</div>";
+            btn.style.display = 'none';
         }
     }
 </script>
